@@ -1,6 +1,7 @@
 
 using Microsoft.EntityFrameworkCore;
 using Parking.WebAPI.Data;
+using Parking.WebAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,9 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Register Services
+builder.Services.AddScoped<IReservationService, ReservationService>();
 
 var app = builder.Build();
 
