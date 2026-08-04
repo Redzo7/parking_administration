@@ -17,6 +17,17 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Register Services
 builder.Services.AddScoped<IReservationService, ReservationService>();
 
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowViteFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:3000", "http://127.0.0.1:3000")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -41,6 +52,8 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.UseCors("AllowViteFrontend");
 
 app.UseAuthorization();
 
