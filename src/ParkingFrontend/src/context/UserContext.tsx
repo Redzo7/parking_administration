@@ -1,4 +1,4 @@
-import { createContext, useState, type ReactNode, useContext } from 'react';
+import { createContext, useState, type ReactNode, useContext, useEffect } from 'react';
 
 interface UserContextType {
   selectedUserId: string;
@@ -8,7 +8,19 @@ interface UserContextType {
 export const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  // Initialize state from local storage if available
+  const [selectedUserId, setSelectedUserId] = useState<string>(
+    localStorage.getItem('selectedUserId') || ''
+  );
+
+  // Sync state to local storage whenever it changes
+  useEffect(() => {
+    if (selectedUserId) {
+      localStorage.setItem('selectedUserId', selectedUserId);
+    } else {
+      localStorage.removeItem('selectedUserId');
+    }
+  }, [selectedUserId]);
 
   return (
     <UserContext.Provider value={{ selectedUserId, setSelectedUserId }}>
@@ -17,7 +29,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Custom hook for easier access to the context
 export const useUser = () => {
   const context = useContext(UserContext);
   if (!context) {
