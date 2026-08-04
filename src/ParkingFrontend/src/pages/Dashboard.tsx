@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { useParkingSlots } from '../query/useParkingSlots';
 import { Modal } from '../components/Modal';
 import { ReservationForm } from '../components/ReservationForm';
+import { useUser } from '../context/UserContext';
+import { useCancelReservation } from '../query/useCancelReservation';
 
 export const Dashboard = () => {
   const { data: slots, isLoading, isError, error } = useParkingSlots();
+  const { selectedUserId } = useUser();
+  const cancelReservation = useCancelReservation();
   
-  // State to handle which slot the user is currently booking
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ id: string; designation: string } | null>(null);
 
@@ -21,6 +24,16 @@ export const Dashboard = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedSlot(null);
+  };
+
+  const handleCancel = (reservationId: string) => {
+    if (window.confirm('Are you sure you want to cancel this reservation?')) {
+      cancelReservation.mutate(reservationId, {
+        onError: (err) => {
+          alert(err.response?.data?.message || 'Failed to cancel reservation');
+        }
+      });
+    }
   };
 
   return (
@@ -56,16 +69,48 @@ export const Dashboard = () => {
             ) : (
               <ul style={{ listStyleType: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {slot.reservations.map((res) => {
-                  const startLocal = new Date(res.startTime).toLocaleString();
-                  const endLocal = new Date(res.endTime).toLocaleString();
+                  const startLocal = new Date(res.startTime);
+                  const endLocal = new Date(res.endTime);
+                  
+                  // Security & UI Logic
+                  const isFuture = new Date(res.startTime) > new Date();
+                  const isOwner = res.userId === selectedUserId;
+                  const canCancel = isFuture && isOwner;
+                  
+                  // Track loading state for this specific button
+                  const isCancelingThis = cancelReservation.isPending && cancelReservation.variables === res.id;
 
                   return (
                     <li key={res.id} style={{
                       backgroundColor: '#ffffff', border: '1px solid #e5e7eb', padding: '0.75rem',
-                      borderRadius: '6px', fontSize: '0.875rem', color: '#374151'
+                      borderRadius: '6px', fontSize: '0.875rem', color: '#374151',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                     }}>
-                      <div style={{ marginBottom: '4px' }}><span style={{ fontWeight: 600, color: '#10b981' }}>Start:</span> {startLocal}</div>
-                      <div><span style={{ fontWeight: 600, color: '#ef4444' }}>End:</span> {endLocal}</div>
+                      <div>
+                        <div style={{ marginBottom: '4px' }}><span style={{ fontWeight: 600, color: '#10b981' }}>Start:</span> {startLocal}</div>
+                        <div><span style={{ fontWeight: 600, color: '#ef4444' }}>End:</span> {endLocal}</div>
+                      </div>
+                      
+                      {/* Conditionally Render Cancel Button */}
+                      {canCancel && (
+                        <button
+                          onClick={() => handleCancel(res.id)}
+                          disabled={isCancelingThis}
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            backgroundColor: isCancelingThis ? '#f3f4f6' : '#fee2e2',
+                            color: isCancelingThis ? '#9ca3af' : '#b91c1c',
+                            border: `1px solid ${isCancelingThis ? '#d1d5db' : '#fca5a5'}`,
+                            borderRadius: '4px',
+                            cursor: isCancelingThis ? 'not-allowed' : 'pointer',
+                            fontWeight: 600,
+                            fontSize: '0.75rem',
+                            transition: 'background-color 0.2s'
+                          }}
+                        >
+                          {isCancelingThis ? 'Canceling...' : 'Cancel'}
+                        </button>
+                      )}
                     </li>
                   );
                 })}
