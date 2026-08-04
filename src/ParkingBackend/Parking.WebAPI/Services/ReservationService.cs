@@ -16,6 +16,17 @@ namespace Parking.WebAPI.Services
 
         public async Task<ReservationResponseDTO> CreateReservationAsync(ReservationRequestDTO request)
         {
+            var slot = await _context.ParkingSlots.FindAsync(request.ParkingSlotId);
+            if(slot == null) throw new KeyNotFoundException("Parking slot not found.");
+
+            var user = await _context.Users.FindAsync(request.UserId);
+            if(user == null) throw new KeyNotFoundException("User not found.");
+
+            if(slot.Type != SlotType.Regular && !user.AuthorizedSlotTypes.Contains(slot.Type))
+            {
+                throw new InvalidOperationException($"User is not authorized to book this {slot.Type} parking slot.");
+            }
+
             // 1. Ensure timestamps are treated as UTC
             var startTimeUtc = request.StartTime.ToUniversalTime();
             var endTimeUtc = request.EndTime.ToUniversalTime();
@@ -44,13 +55,6 @@ namespace Parking.WebAPI.Services
                 throw new InvalidOperationException("The parking slot is already booked for the requested time period.");
             }
 
-            // Ensure the User and ParkingSlot actually exist
-            bool slotExists = await _context.ParkingSlots.AnyAsync(p => p.Id == request.ParkingSlotId);
-            if (!slotExists) throw new ArgumentException("Invalid ParkingSlotId.");
-
-            bool userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId);
-            if (!userExists) throw new ArgumentException("Invalid UserId.");
-
             // 5. Map DTO to Model
             var reservation = new Reservation
             {
@@ -76,10 +80,9 @@ namespace Parking.WebAPI.Services
             };
         }
 
-        // Add the new cancellation method here:
-        public async Task CancelReservationAsync(Guid reservationId)
+        public async Task CancelReservationAsync(Guid reservationId, Guid requestingUserId)
         {
-            // 1. Retrieve the reservation from the database
+            // Retrieve the reservation from the database
             var reservation = await _context.Reservations.FindAsync(reservationId);
 
             if (reservation == null)
@@ -87,13 +90,19 @@ namespace Parking.WebAPI.Services
                 throw new KeyNotFoundException($"Reservation with ID {reservationId} was not found.");
             }
 
-            // 2. Check the StartTime against DateTime.UtcNow
+            // Security check - ensure ownership
+            if(reservation.UserId != requestingUserId)
+            {
+                throw new UnauthorizedAccessException("You are not authorized to cancel this reservation.");
+            }
+
+            // Check the StartTime against DateTime.UtcNow
             if (reservation.StartTime <= DateTime.UtcNow)
             {
                 throw new InvalidOperationException("Cannot cancel a reservation that has already started or finished.");
             }
 
-            // 3. Remove from database and save
+            // Remove from database and save
             _context.Reservations.Remove(reservation);
             await _context.SaveChangesAsync();
         }

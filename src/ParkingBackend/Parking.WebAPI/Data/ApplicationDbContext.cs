@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Parking.WebAPI.Models;
+using System.Text.Json;
 
 namespace Parking.WebAPI.Data
 {
@@ -35,6 +36,13 @@ namespace Parking.WebAPI.Data
             modelBuilder.Entity<ParkingSlot>()
                 .HasIndex(p => p.Designation)
                 .IsUnique();
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.AuthorizedSlotTypes)
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
+                    v => JsonSerializer.Deserialize<List<SlotType>>(v, (JsonSerializerOptions)null) ?? new List<SlotType>()
+                );
         }
     }
 }

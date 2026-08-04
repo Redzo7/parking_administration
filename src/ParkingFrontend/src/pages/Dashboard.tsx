@@ -69,8 +69,8 @@ export const Dashboard = () => {
             ) : (
               <ul style={{ listStyleType: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {slot.reservations.map((res) => {
-                  const startLocal = new Date(res.startTime);
-                  const endLocal = new Date(res.endTime);
+                  const startLocal = new Date(res.startTime).toLocaleString();
+                  const endLocal = new Date(res.endTime).toLocaleString();
                   
                   // Security & UI Logic
                   const isFuture = new Date(res.startTime) > new Date();

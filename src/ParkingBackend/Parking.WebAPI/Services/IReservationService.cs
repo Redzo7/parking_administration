@@ -5,6 +5,6 @@ namespace Parking.WebAPI.Services
     public interface IReservationService
     {
         Task<ReservationResponseDTO> CreateReservationAsync(ReservationRequestDTO request);
-        Task CancelReservationAsync(Guid reservationId);
+        Task CancelReservationAsync(Guid reservationId, Guid requestingUserId);
     }
 }
