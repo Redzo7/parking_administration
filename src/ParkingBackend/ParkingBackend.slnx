@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../../tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj" Id="c9197e72-8009-4c63-a082-e6dc82af3d61" />
   <Project Path="Parking.WebAPI/Parking.WebAPI.csproj" />
 </Solution>

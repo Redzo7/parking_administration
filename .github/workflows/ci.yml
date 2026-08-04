@@ -1,0 +1,34 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    name: Build and Test .NET 10
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 10 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: |
+        dotnet restore src/ParkingBackend/Parking.WebAPI/Parking.WebAPI.csproj
+        dotnet restore tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj
+
+    - name: Build the backend
+      run: |
+        dotnet build src/ParkingBackend/Parking.WebAPI/Parking.WebAPI.csproj --no-restore --configuration Release
+        dotnet build tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj --no-restore --configuration Release
+
+    - name: Execute tests
+      run: dotnet test tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj --no-build --configuration Release --verbosity normal
