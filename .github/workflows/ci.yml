@@ -26,7 +26,9 @@ jobs:
         dotnet restore tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj
 
     - name: Build the backend
-      run: dotnet build src/ParkingBackend/Parking.WebAPI/Parking.WebAPI.csproj --no-restore --configuration Release
+      run: |
+        dotnet build src/ParkingBackend/Parking.WebAPI/Parking.WebAPI.csproj --no-restore --configuration Release
+        dotnet build tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj --no-restore --configuration Release
 
     - name: Execute tests
       run: dotnet test tests/Parking.WebAPI.IntegrationTests/Parking.WebAPI.IntegrationTests.csproj --no-build --configuration Release --verbosity normal
