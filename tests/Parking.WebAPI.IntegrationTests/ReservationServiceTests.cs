@@ -188,6 +188,78 @@ namespace Parking.WebAPI.IntegrationTests
             await _context.SaveChangesAsync();
         }
 
+        [Fact]
+        public async Task CancelReservation_WhenReservationDoesNotExist_ShouldThrowKeyNotFoundException()
+        {
+            // Arrange
+            var nonExistentReservationId = Guid.NewGuid();
+
+            // Act
+            Func<Task> act = async () => await _service.CancelReservationAsync(nonExistentReservationId);
+
+            // Assert
+            await act.Should().ThrowAsync<KeyNotFoundException>()
+                .WithMessage($"Reservation with ID {nonExistentReservationId} was not found.");
+        }
+
+        [Fact]
+        public async Task CancelReservation_WhenStartTimeIsInThePast_ShouldThrowInvalidOperationException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var slotId = Guid.NewGuid();
+            var reservationId = Guid.NewGuid();
+
+            await SeedUserAndSlotAsync(userId, slotId);
+
+            // Add a reservation that has already happened
+            _context.Reservations.Add(new Reservation
+            {
+                Id = reservationId,
+                UserId = userId,
+                ParkingSlotId = slotId,
+                StartTime = DateTime.UtcNow.AddHours(-2), // Started 2 hours ago
+                EndTime = DateTime.UtcNow.AddHours(-1)
+            });
+            await _context.SaveChangesAsync();
+
+            // Act
+            Func<Task> act = async () => await _service.CancelReservationAsync(reservationId);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("Cannot cancel a reservation that has already started or finished.");
+        }
+
+        [Fact]
+        public async Task CancelReservation_WhenStartTimeIsInTheFuture_ShouldDeleteFromDatabase()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var slotId = Guid.NewGuid();
+            var reservationId = Guid.NewGuid();
+
+            await SeedUserAndSlotAsync(userId, slotId);
+
+            // Add a reservation in the future
+            _context.Reservations.Add(new Reservation
+            {
+                Id = reservationId,
+                UserId = userId,
+                ParkingSlotId = slotId,
+                StartTime = DateTime.UtcNow.AddHours(2), // Starts in 2 hours
+                EndTime = DateTime.UtcNow.AddHours(3)
+            });
+            await _context.SaveChangesAsync();
+
+            // Act
+            await _service.CancelReservationAsync(reservationId);
+
+            // Assert
+            var deletedReservation = await _context.Reservations.FindAsync(reservationId);
+            deletedReservation.Should().BeNull("because the valid future reservation should have been deleted from the database");
+        }
+
         public void Dispose()
         {
             _context.Dispose();
