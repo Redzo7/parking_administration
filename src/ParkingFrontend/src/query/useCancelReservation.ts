@@ -15,7 +15,7 @@ export const useCancelReservation = () => {
     },
     onSuccess: () => {
       // Refresh the dashboard data automatically
-      queryClient.invalidateQueries({ queryKey: ['parkingSlots'] });
+      queryClient.invalidateQueries({ queryKey: ['parkingSlots', 'userReservations'] });
     },
   });
 };

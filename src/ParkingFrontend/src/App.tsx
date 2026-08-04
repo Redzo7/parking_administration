@@ -1,20 +1,17 @@
-import './App.css'
-import { Route, Routes } from 'react-router-dom'
-import { Layout } from './components/Layout'
-import { Dashboard } from './pages/Dashboard'
-import { NotFound } from './pages/NotFound'
-import { UserProvider } from './context/UserContext'
+import { Routes, Route } from 'react-router-dom';
+import { Layout } from './components/Layout';
+import { Dashboard } from './pages/Dashboard';
+import { MyReservations } from './pages/MyReservations';
+import { NotFound } from './pages/NotFound';
+import { UserProvider } from './context/UserContext';
 
 function App() {
   return (
     <UserProvider>
       <Routes>
-        {/* Parent route with the layout */}
         <Route path="/" element={<Layout />}>
-          {/* Index route renders at exactly "/" */}
           <Route index element={<Dashboard />} />
-          
-          {/* Catch-all route for undefined paths */}
+          <Route path="my-reservations" element={<MyReservations />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
@@ -22,4 +19,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

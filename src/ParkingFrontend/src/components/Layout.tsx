@@ -2,6 +2,7 @@ import { Outlet, Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useUsers } from '../query/useUsers';
 import { useUser } from '../context/UserContext';
+import { getUserEmojis } from '../utils/formatters';
 
 export const Layout = () => {
   const { data: users, isLoading, isError } = useUsers();
@@ -26,9 +27,14 @@ export const Layout = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
           <h2 style={{ margin: 0, color: '#111827' }}>Parking Admin</h2>
-          <Link to="/" style={{ textDecoration: 'none', color: '#374151', fontWeight: 'bold' }}>
-            Dashboard
-          </Link>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <Link to="/" style={{ textDecoration: 'none', color: '#374151', fontWeight: 'bold' }}>
+              Dashboard
+            </Link>
+            <Link to="/my-reservations" style={{ textDecoration: 'none', color: '#374151', fontWeight: 'bold' }}>
+              My Reservations
+            </Link>
+          </div>
         </div>
 
         {/* User Selection Dropdown */}
@@ -57,7 +63,7 @@ export const Layout = () => {
             >
               {users?.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.name}
+                  {user.name}{getUserEmojis(user.authorizedSlotTypes)}
                 </option>
               ))}
             </select>
