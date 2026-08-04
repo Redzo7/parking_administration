@@ -75,5 +75,27 @@ namespace Parking.WebAPI.Services
                 EndTime = reservation.EndTime
             };
         }
+
+        // Add the new cancellation method here:
+        public async Task CancelReservationAsync(Guid reservationId)
+        {
+            // 1. Retrieve the reservation from the database
+            var reservation = await _context.Reservations.FindAsync(reservationId);
+
+            if (reservation == null)
+            {
+                throw new KeyNotFoundException($"Reservation with ID {reservationId} was not found.");
+            }
+
+            // 2. Check the StartTime against DateTime.UtcNow
+            if (reservation.StartTime <= DateTime.UtcNow)
+            {
+                throw new InvalidOperationException("Cannot cancel a reservation that has already started or finished.");
+            }
+
+            // 3. Remove from database and save
+            _context.Reservations.Remove(reservation);
+            await _context.SaveChangesAsync();
+        }
     }
 }
