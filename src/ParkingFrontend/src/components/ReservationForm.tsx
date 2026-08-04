@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useUser } from '../context/UserContext';
+import { useCreateReservation } from '../query/useCreateReservation';
 
 interface ReservationFormProps {
   parkingSlotId: string;
@@ -10,8 +12,14 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [apiError, setApiError] = useState('');
+
+  const { selectedUserId } = useUser();
+  const createReservation = useCreateReservation();
 
   useEffect(() => {
+    setApiError(''); // Clear API error when inputs change
+
     if (!startTime || !endTime) {
       setValidationError('');
       return;
@@ -26,8 +34,7 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
       return;
     }
 
-    const diffInMilliseconds = end.getTime() - start.getTime();
-    const diffInMinutes = diffInMilliseconds / (1000 * 60);
+    const diffInMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
 
     if (diffInMinutes < 30) {
       setValidationError('End time must be at least 30 minutes after start time.');
@@ -40,12 +47,32 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validationError || !startTime || !endTime) return;
-    
-    console.log('Validation passed! Ready to submit:', { parkingSlotId, startTime, endTime });
-    alert('Form is valid! (API Mutation pending in the next task)');
+
+    if (!selectedUserId) {
+      setApiError('No user is currently selected. Please select one from the navigation bar.');
+      return;
+    }
+
+    const request = {
+      parkingSlotId,
+      userId: selectedUserId,
+      // Convert browser local time to strictly formatted UTC strings for the backend
+      startTime: new Date(startTime).toISOString(),
+      endTime: new Date(endTime).toISOString(),
+    };
+
+    createReservation.mutate(request, {
+      onSuccess: () => {
+        onClose();
+      },
+      onError: (error) => {
+        const message = error.response?.data?.message || 'An unexpected error occurred.';
+        setApiError(message);
+      }
+    });
   };
 
-  const isFormValid = startTime && endTime && !validationError;
+  const isFormValid = startTime && endTime && !validationError && !createReservation.isPending;
 
   return (
     <div>
@@ -65,6 +92,7 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
             onChange={(e) => setStartTime(e.target.value)}
             style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #d1d5db' }}
             required
+            disabled={createReservation.isPending}
           />
         </div>
 
@@ -77,13 +105,21 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
             onChange={(e) => setEndTime(e.target.value)}
             style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #d1d5db' }}
             required
+            disabled={createReservation.isPending}
           />
         </div>
 
-        {/* Validation Warning */}
+        {/* Client-side Validation Warning */}
         {validationError && (
           <div style={{ color: '#ef4444', fontSize: '0.875rem', fontWeight: 500 }}>
             {validationError}
+          </div>
+        )}
+
+        {/* Backend API Error Warning */}
+        {apiError && (
+          <div style={{ color: '#b91c1c', fontSize: '0.875rem', fontWeight: 500, backgroundColor: '#fee2e2', padding: '0.75rem', borderRadius: '4px' }}>
+            {apiError}
           </div>
         )}
 
@@ -91,9 +127,10 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
           <button
             type="button"
             onClick={onClose}
+            disabled={createReservation.isPending}
             style={{
               padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid #d1d5db',
-              backgroundColor: '#ffffff', cursor: 'pointer'
+              backgroundColor: '#ffffff', cursor: createReservation.isPending ? 'not-allowed' : 'pointer'
             }}
           >
             Cancel
@@ -107,7 +144,7 @@ export const ReservationForm = ({ parkingSlotId, designation, onClose }: Reserva
               color: '#ffffff', cursor: isFormValid ? 'pointer' : 'not-allowed'
             }}
           >
-            Submit
+            {createReservation.isPending ? 'Submitting...' : 'Submit'}
           </button>
         </div>
       </form>
