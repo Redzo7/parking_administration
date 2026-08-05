@@ -1,13 +1,20 @@
 
 using Microsoft.EntityFrameworkCore;
+using Parking.WebAPI.Converters;
 using Parking.WebAPI.Data;
 using Parking.WebAPI.Services;
+using Parking.WebAPI.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Add the custom converter for DateTime
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
@@ -31,6 +32,27 @@ namespace Parking.WebAPI.IntegrationTests
             _context.Database.Migrate(); // Ensure schema is created
 
             _service = new ReservationService(_context);
+        }
+
+        private async Task SeedUserAndSlotAsync(Guid userId, Guid slotId, SlotType slotType = SlotType.Regular, List<SlotType> authorizedTypes = null)
+        {
+            authorizedTypes ??= new List<SlotType> { SlotType.Regular };
+
+            _context.Users.Add(new User
+            {
+                Id = userId,
+                Name = "Test User",
+                AuthorizedSlotTypes = authorizedTypes
+            });
+
+            _context.ParkingSlots.Add(new ParkingSlot
+            {
+                Id = slotId,
+                Designation = "T01",
+                Type = slotType
+            });
+
+            await _context.SaveChangesAsync();
         }
 
         [Fact]
@@ -72,6 +94,32 @@ namespace Parking.WebAPI.IntegrationTests
             // Assert
             await act.Should().ThrowAsync<ArgumentException>()
                 .WithMessage("Reservation duration must be at least 30 minutes.");
+        }
+
+        [Fact]
+        public async Task CreateReservation_WhenUserNotAuthorizedForSlotType_ShouldThrowInvalidOperationException()
+        {
+            // Arrange
+            var userId = Guid.NewGuid();
+            var slotId = Guid.NewGuid();
+
+            // Seed a user with Regular access, but a VIP slot
+            await SeedUserAndSlotAsync(userId, slotId, SlotType.VIP, new List<SlotType> { SlotType.Regular });
+
+            var request = new ReservationRequestDTO
+            {
+                ParkingSlotId = slotId,
+                UserId = userId,
+                StartTime = DateTime.UtcNow.AddHours(2),
+                EndTime = DateTime.UtcNow.AddHours(4)
+            };
+
+            // Act
+            Func<Task> act = async () => await _service.CreateReservationAsync(request);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*authorized*"); // Matches "User is not authorized to book this VIP parking slot."
         }
 
         [Fact]
@@ -181,25 +229,48 @@ namespace Parking.WebAPI.IntegrationTests
             dbEntity.EndTime.Should().Be(request.EndTime);
         }
 
-        private async Task SeedUserAndSlotAsync(Guid userId, Guid slotId)
-        {
-            _context.Users.Add(new User { Id = userId, Name = "Test User" });
-            _context.ParkingSlots.Add(new ParkingSlot { Id = slotId, Designation = "T01" });
-            await _context.SaveChangesAsync();
-        }
-
         [Fact]
         public async Task CancelReservation_WhenReservationDoesNotExist_ShouldThrowKeyNotFoundException()
         {
             // Arrange
             var nonExistentReservationId = Guid.NewGuid();
+            var requestingUserId = Guid.NewGuid();
 
             // Act
-            Func<Task> act = async () => await _service.CancelReservationAsync(nonExistentReservationId);
+            Func<Task> act = async () => await _service.CancelReservationAsync(nonExistentReservationId, requestingUserId);
 
             // Assert
             await act.Should().ThrowAsync<KeyNotFoundException>()
-                .WithMessage($"Reservation with ID {nonExistentReservationId} was not found.");
+                .WithMessage("*not found*");
+        }
+
+        [Fact]
+        public async Task CancelReservation_WhenUserDoesNotOwnReservation_ShouldThrowUnauthorizedAccessException()
+        {
+            // Arrange
+            var ownerId = Guid.NewGuid();
+            var hackerId = Guid.NewGuid();
+            var slotId = Guid.NewGuid();
+            var reservationId = Guid.NewGuid();
+
+            await SeedUserAndSlotAsync(ownerId, slotId);
+
+            _context.Reservations.Add(new Reservation
+            {
+                Id = reservationId,
+                UserId = ownerId,
+                ParkingSlotId = slotId,
+                StartTime = DateTime.UtcNow.AddHours(2),
+                EndTime = DateTime.UtcNow.AddHours(3)
+            });
+            await _context.SaveChangesAsync();
+
+            // Act - Trying to cancel with Hacker's ID
+            Func<Task> act = async () => await _service.CancelReservationAsync(reservationId, hackerId);
+
+            // Assert
+            await act.Should().ThrowAsync<UnauthorizedAccessException>()
+                .WithMessage("You are not authorized to cancel this reservation.");
         }
 
         [Fact]
@@ -216,15 +287,15 @@ namespace Parking.WebAPI.IntegrationTests
             _context.Reservations.Add(new Reservation
             {
                 Id = reservationId,
-                UserId = userId,
+                UserId = userId, // Owned by user
                 ParkingSlotId = slotId,
                 StartTime = DateTime.UtcNow.AddHours(-2), // Started 2 hours ago
                 EndTime = DateTime.UtcNow.AddHours(-1)
             });
             await _context.SaveChangesAsync();
 
-            // Act
-            Func<Task> act = async () => await _service.CancelReservationAsync(reservationId);
+            // Act - Passed correct owner ID
+            Func<Task> act = async () => await _service.CancelReservationAsync(reservationId, userId);
 
             // Assert
             await act.Should().ThrowAsync<InvalidOperationException>()
@@ -232,7 +303,7 @@ namespace Parking.WebAPI.IntegrationTests
         }
 
         [Fact]
-        public async Task CancelReservation_WhenStartTimeIsInTheFuture_ShouldDeleteFromDatabase()
+        public async Task CancelReservation_WhenStartTimeIsInTheFutureAndValidOwner_ShouldDeleteFromDatabase()
         {
             // Arrange
             var userId = Guid.NewGuid();
@@ -253,11 +324,11 @@ namespace Parking.WebAPI.IntegrationTests
             await _context.SaveChangesAsync();
 
             // Act
-            await _service.CancelReservationAsync(reservationId);
+            await _service.CancelReservationAsync(reservationId, userId);
 
             // Assert
             var deletedReservation = await _context.Reservations.FindAsync(reservationId);
-            deletedReservation.Should().BeNull("because the valid future reservation should have been deleted from the database");
+            deletedReservation.Should().BeNull("because the valid future reservation should have been deleted by the owner");
         }
 
         public void Dispose()

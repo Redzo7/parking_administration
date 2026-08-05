@@ -26,9 +26,6 @@ namespace Parking.WebAPI.Controllers
             {
                 var response = await _reservationService.CreateReservationAsync(request);
 
-                // Return 201 Created. 
-                // We use nameof(CreateReservation) just as a placeholder for the Location header URI, 
-                // but typically this points to a GET endpoint for the specific resource.
                 return Created(string.Empty, response);
             }
             catch (ArgumentException ex)
@@ -43,12 +40,20 @@ namespace Parking.WebAPI.Controllers
 
         // DELETE: api/reservations/{id}
         [HttpDelete("{id}")]
-        public async Task<IActionResult> CancelReservation(Guid id)
+        public async Task<IActionResult> CancelReservation(Guid id, [FromHeader(Name = "X-User-Id")] Guid requestingUserId)
         {
             try
             {
-                await _reservationService.CancelReservationAsync(id);
+                if(requestingUserId == Guid.Empty)
+                {
+                    return BadRequest(new { message = "The X-User-Id header is missing." });
+                }
+                await _reservationService.CancelReservationAsync(id, requestingUserId);
                 return NoContent(); // Returns 204
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
             }
             catch (KeyNotFoundException ex)
             {
@@ -56,8 +61,11 @@ namespace Parking.WebAPI.Controllers
             }
             catch (InvalidOperationException ex)
             {
-                // Returns 400 Bad Request if the reservation cannot be canceled due to business rules (e.g., already started)
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "An unexpected error occurred while canceling the reservation." });
             }
         }
     }

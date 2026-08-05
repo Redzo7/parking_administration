@@ -24,6 +24,7 @@ export const useCreateReservation = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parkingSlots'] });
+      queryClient.invalidateQueries({ queryKey: ['userReservations'] });
     },
   });
 };

@@ -27,6 +27,7 @@ namespace Parking.WebAPI.Controllers
                 {
                     Id = p.Id,
                     Designation = p.Designation,
+                    Type = p.Type,
                     Reservations = p.Reservations.Select(r => new ReservationResponseDTO
                     {
                         Id = r.Id,
@@ -53,6 +54,7 @@ namespace Parking.WebAPI.Controllers
                 {
                     Id = p.Id,
                     Designation = p.Designation,
+                    Type = p.Type,
                     Reservations = p.Reservations.Select(r => new ReservationResponseDTO
                     {
                         Id = r.Id,

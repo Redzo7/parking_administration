@@ -28,11 +28,43 @@ namespace Parking.WebAPI.Controllers
                 .Select(u => new UserResponseDTO
                 {
                     Id = u.Id,
-                    Name = u.Name
+                    Name = u.Name,
+                    AuthorizedSlotTypes = u.AuthorizedSlotTypes,
                 })
                 .ToListAsync();
 
             return Ok(users);
+        }
+
+        // GET: api/users/{userId}/reservations
+        [HttpGet("{userId:guid}/reservations")]
+        public async Task<ActionResult<IEnumerable<ReservationResponseDTO>>> GetUserReservations(Guid userId)
+        {
+            // First, verify the user exists
+            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
+            {
+                return NotFound(new { message = "User not found." });
+            }
+
+            // Fetch, map, and sort their reservations
+            var reservations = await _context.Reservations
+                .AsNoTracking()
+                .Include(r => r.ParkingSlot) // Include to access the Designation
+                .Where(r => r.UserId == userId)
+                .OrderByDescending(r => r.StartTime)
+                .Select(r => new ReservationResponseDTO
+                {
+                    Id = r.Id,
+                    ParkingSlotId = r.ParkingSlotId,
+                    ParkingSlotDesignation = r.ParkingSlot!.Designation, // Map the designation for the UI
+                    UserId = r.UserId,
+                    StartTime = r.StartTime,
+                    EndTime = r.EndTime
+                })
+                .ToListAsync();
+
+            return Ok(reservations);
         }
     }
 }

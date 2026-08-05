@@ -17,15 +17,15 @@ namespace Parking.WebAPI.Data
             bool needsSave = false;
 
             // 1. Seed 5 Dummy Users
-            if (!await context.Users.AnyAsync())
+            if (!context.Users.Any())
             {
                 var users = new List<User>
                 {
-                    new User { Id = Guid.NewGuid(), Name = "Alice Smith" },
-                    new User { Id = Guid.NewGuid(), Name = "Bob Jones" },
-                    new User { Id = Guid.NewGuid(), Name = "Charlie Brown" },
-                    new User { Id = Guid.NewGuid(), Name = "Diana Prince" },
-                    new User { Id = Guid.NewGuid(), Name = "Evan Wright" }
+                    new User { Id = Guid.NewGuid(), Name = "Alice (All)", AuthorizedSlotTypes = new List<SlotType> { SlotType.Regular, SlotType.VIP, SlotType.Electric, SlotType.Accessible } },
+                    new User { Id = Guid.NewGuid(), Name = "Bob (Electric)", AuthorizedSlotTypes = new List<SlotType> { SlotType.Regular, SlotType.Electric } },
+                    new User { Id = Guid.NewGuid(), Name = "Charlie (Accessible)", AuthorizedSlotTypes = new List<SlotType> { SlotType.Regular, SlotType.Accessible } },
+                    new User { Id = Guid.NewGuid(), Name = "Dave (Regular)", AuthorizedSlotTypes = new List<SlotType> { SlotType.Regular } },
+                    new User { Id = Guid.NewGuid(), Name = "Eve (VIP)", AuthorizedSlotTypes = new List<SlotType> { SlotType.Regular, SlotType.VIP } }
                 };
 
                 await context.Users.AddRangeAsync(users);
@@ -46,6 +46,12 @@ namespace Parking.WebAPI.Data
                         Designation = $"A{i:D2}"
                     });
                 }
+
+                slots[0].Type = SlotType.Accessible;
+                slots[1].Type = SlotType.Electric;
+                slots[5].Type = SlotType.Accessible;
+                slots[6].Type = SlotType.VIP;
+                slots[10].Type = SlotType.Electric;
 
                 await context.ParkingSlots.AddRangeAsync(slots);
                 needsSave = true;
