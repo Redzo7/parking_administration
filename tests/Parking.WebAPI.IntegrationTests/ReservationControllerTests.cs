@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Parking.WebAPI.Data;
 using Parking.WebAPI.DTOs;
+using Parking.WebAPI.Models;
 using Xunit;
 
 namespace Parking.WebAPI.IntegrationTests
@@ -28,7 +29,7 @@ namespace Parking.WebAPI.IntegrationTests
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var userId = dbContext.Users.First().Id;
-            var slotId = dbContext.ParkingSlots.First().Id;
+            var slotId = dbContext.ParkingSlots.First(s => s.Type == SlotType.Regular).Id;
 
             return (userId, slotId);
         }
@@ -59,6 +60,36 @@ namespace Parking.WebAPI.IntegrationTests
             createdReservation.Should().NotBeNull();
             createdReservation!.ParkingSlotId.Should().Be(slotId);
             createdReservation.UserId.Should().Be(userId);
+        }
+
+        [Fact]
+        public async Task PostReservation_WithUnauthorizedSlotType_ReturnsBadRequest()
+        {
+            // Arrange
+            var client = _factory.CreateClient();
+            using var scope = _factory.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            // Find a user with only Regular access, and a VIP slot
+            var regularUser = dbContext.Users.AsEnumerable().First(u => !u.AuthorizedSlotTypes.Contains(SlotType.VIP));
+            var vipSlot = dbContext.ParkingSlots.AsEnumerable().First(s => s.Type == SlotType.VIP);
+
+            var request = new ReservationRequestDTO
+            {
+                ParkingSlotId = vipSlot.Id,
+                UserId = regularUser.Id,
+                StartTime = DateTime.UtcNow.AddDays(15),
+                EndTime = DateTime.UtcNow.AddDays(15).AddHours(2)
+            };
+
+            // Act
+            var response = await client.PostAsJsonAsync("/api/reservations", request);
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            errorContent.Should().Contain("not authorized");
         }
 
         [Fact]
@@ -105,15 +136,51 @@ namespace Parking.WebAPI.IntegrationTests
                 EndTime = DateTime.UtcNow.AddDays(12).AddHours(2)
             };
 
-            // First, create a reservation to ensure we have a valid ID to delete
             var createResponse = await client.PostAsJsonAsync("/api/reservations", request);
             var createdReservation = await createResponse.Content.ReadFromJsonAsync<ReservationResponseDTO>();
 
             // Act
-            var deleteResponse = await client.DeleteAsync($"/api/reservations/{createdReservation!.Id}");
+            // We must use HttpRequestMessage to inject the custom X-User-Id header
+            var requestMessage = new HttpRequestMessage(HttpMethod.Delete, $"/api/reservations/{createdReservation!.Id}");
+            requestMessage.Headers.Add("X-User-Id", userId.ToString());
+
+            var deleteResponse = await client.SendAsync(requestMessage);
 
             // Assert
             deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        }
+
+        [Fact]
+        public async Task DeleteReservation_WithUnauthorizedUser_ReturnsForbidden()
+        {
+            // Arrange
+            var client = _factory.CreateClient();
+            var (ownerId, slotId) = GetValidIds();
+            var hackerId = Guid.NewGuid(); // A different, unauthorized user ID
+
+            var request = new ReservationRequestDTO
+            {
+                ParkingSlotId = slotId,
+                UserId = ownerId,
+                StartTime = DateTime.UtcNow.AddDays(13),
+                EndTime = DateTime.UtcNow.AddDays(13).AddHours(2)
+            };
+
+            var createResponse = await client.PostAsJsonAsync("/api/reservations", request);
+            var createdReservation = await createResponse.Content.ReadFromJsonAsync<ReservationResponseDTO>();
+
+            // Act
+            // Attempt deletion using the hacker's ID in the header
+            var requestMessage = new HttpRequestMessage(HttpMethod.Delete, $"/api/reservations/{createdReservation!.Id}");
+            requestMessage.Headers.Add("X-User-Id", hackerId.ToString());
+
+            var deleteResponse = await client.SendAsync(requestMessage);
+
+            // Assert
+            deleteResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+            var errorContent = await deleteResponse.Content.ReadAsStringAsync();
+            errorContent.Should().Contain("not authorized");
         }
     }
 }

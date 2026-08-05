@@ -16,17 +16,6 @@ namespace Parking.WebAPI.Services
 
         public async Task<ReservationResponseDTO> CreateReservationAsync(ReservationRequestDTO request)
         {
-            var slot = await _context.ParkingSlots.FindAsync(request.ParkingSlotId);
-            if(slot == null) throw new KeyNotFoundException("Parking slot not found.");
-
-            var user = await _context.Users.FindAsync(request.UserId);
-            if(user == null) throw new KeyNotFoundException("User not found.");
-
-            if(slot.Type != SlotType.Regular && !user.AuthorizedSlotTypes.Contains(slot.Type))
-            {
-                throw new InvalidOperationException($"User is not authorized to book this {slot.Type} parking slot.");
-            }
-
             // 1. Ensure timestamps are treated as UTC
             var startTimeUtc = request.StartTime.ToUniversalTime();
             var endTimeUtc = request.EndTime.ToUniversalTime();
@@ -42,6 +31,17 @@ namespace Parking.WebAPI.Services
             if (duration.TotalMinutes < 30)
             {
                 throw new ArgumentException("Reservation duration must be at least 30 minutes.");
+            }
+
+            var slot = await _context.ParkingSlots.FindAsync(request.ParkingSlotId);
+            if (slot == null) throw new KeyNotFoundException("Parking slot not found.");
+
+            var user = await _context.Users.FindAsync(request.UserId);
+            if (user == null) throw new KeyNotFoundException("User not found.");
+
+            if (slot.Type != SlotType.Regular && !user.AuthorizedSlotTypes.Contains(slot.Type))
+            {
+                throw new InvalidOperationException($"User is not authorized to book this {slot.Type} parking slot.");
             }
 
             // 4. Reject if an overlapping reservation exists for the same ParkingSlotId
